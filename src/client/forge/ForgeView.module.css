@@ -1,0 +1,375 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px;
+  height: 100%;
+  overflow: auto;
+  box-sizing: border-box;
+}
+
+.toolbar {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.card {
+  border: 1px solid var(--color-border, rgba(128, 128, 128, 0.35));
+  border-radius: 8px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.card h3 {
+  margin: 0;
+  font-size: 14px;
+}
+
+.row {
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  min-width: 160px;
+  font-size: 12px;
+}
+
+.field input,
+.field textarea {
+  font: inherit;
+  padding: 6px 8px;
+  border: 1px solid var(--color-border, rgba(128, 128, 128, 0.35));
+  border-radius: 6px;
+  background: var(--color-bg, transparent);
+  color: var(--color-text, inherit);
+  resize: vertical;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.actions button,
+.filters button,
+.toolbar button,
+.row button {
+  font: inherit;
+  padding: 5px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--color-border, rgba(128, 128, 128, 0.35));
+  background: var(--color-bg, transparent);
+  color: var(--color-text, inherit);
+  cursor: pointer;
+}
+
+.actions button:disabled,
+.filters button:disabled,
+.toolbar button:disabled,
+.row button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.primary {
+  font-weight: 600;
+}
+
+.danger {
+  color: #c0392b;
+}
+
+.filters {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.filters .active {
+  font-weight: 700;
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.item {
+  border: 1px solid var(--color-border, rgba(128, 128, 128, 0.2));
+  border-radius: 6px;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.itemHead {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: baseline;
+  flex-wrap: wrap;
+}
+
+.preview {
+  margin: 0;
+  font-size: 12px;
+  opacity: 0.85;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 120px;
+  overflow: auto;
+}
+
+.muted {
+  font-size: 12px;
+  opacity: 0.65;
+  margin: 0;
+}
+
+.notice {
+  padding: 8px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  background: rgba(46, 160, 67, 0.15);
+  border: 1px solid rgba(46, 160, 67, 0.5);
+}
+
+.error {
+  padding: 8px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  background: rgba(192, 57, 43, 0.12);
+  border: 1px solid rgba(192, 57, 43, 0.5);
+}
+
+.headerInfo,
+.counts {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+}
+
+.headerInfo dt,
+.counts dt {
+  opacity: 0.65;
+}
+
+.headerInfo dd,
+.counts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.report {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.repairBox {
+  border: 1px solid var(--color-border, rgba(128, 128, 128, 0.35));
+  border-radius: 6px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.section {
+  border: 1px solid var(--color-border, rgba(128, 128, 128, 0.35));
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.section > summary {
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 2px 0 8px;
+}
+
+.contextPanel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.contextToolbar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.cardGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.groupHeading {
+  margin: 8px 0 0;
+  font-size: 12px;
+  opacity: 0.75;
+  border-left: 3px solid var(--color-border, rgba(128, 128, 128, 0.5));
+  padding-left: 8px;
+}
+
+.contextCard {
+  gap: 8px;
+}
+
+.cardHead {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  flex-wrap: wrap;
+}
+
+.cardBadge {
+  font-weight: 700;
+  font-size: 12px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  border: 1px solid var(--color-border, rgba(128, 128, 128, 0.4));
+  background: var(--color-bg, transparent);
+}
+
+.cardSummary {
+  font-size: 12px;
+  opacity: 0.9;
+  overflow-wrap: anywhere;
+}
+
+.cardChips {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.chip {
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  border: 1px solid rgba(46, 160, 67, 0.5);
+  background: rgba(46, 160, 67, 0.12);
+}
+
+.chipWarning {
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  border: 1px solid rgba(192, 57, 43, 0.5);
+  background: rgba(192, 57, 43, 0.12);
+}
+
+.chipInfo {
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  border: 1px solid rgba(41, 98, 255, 0.5);
+  background: rgba(41, 98, 255, 0.1);
+}
+
+.cardActions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.cardBody {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.blockRow {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.blockLabel {
+  font-size: 11px;
+  opacity: 0.65;
+}
+
+.cardPre {
+  margin: 0;
+  padding: 8px;
+  border: 1px solid var(--color-border, rgba(128, 128, 128, 0.2));
+  border-radius: 6px;
+  font: 12px/1.5 ui-monospace, Consolas, monospace;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 260px;
+  overflow: auto;
+  background: var(--color-bg, transparent);
+}
+
+.cardMetaRow {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 11px;
+  opacity: 0.8;
+}
+
+.rawDetails > summary {
+  cursor: pointer;
+  font-size: 12px;
+  opacity: 0.8;
+}
+
+.cardEditor {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border-top: 1px dashed var(--color-border, rgba(128, 128, 128, 0.35));
+  padding-top: 10px;
+}
+
+.checkField {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 12px;
+}
+
+.usageGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.usageGrid input {
+  font: inherit;
+  padding: 5px 8px;
+  border: 1px solid var(--color-border, rgba(128, 128, 128, 0.35));
+  border-radius: 6px;
+  background: var(--color-bg, transparent);
+  color: var(--color-text, inherit);
+}
+
+.usageTitle {
+  grid-column: 1 / -1;
+  opacity: 0.7;
+}

@@ -1,0 +1,7 @@
+# dsh-context-console bundle patch —— 挂进 profile 插件树。
+# Host 半注册 /dsh-context-console 与兼容的 /dsh-assistant-message-forge RPC 通道；
+# client-modules 扫描器通过包名发现 dsh.client 声明并加载 lib/client.js。
+- insert:
+    - id: dsh-context-console
+      name: dsh-context-console
+      config: {}
