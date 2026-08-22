@@ -1,5 +1,9 @@
 # DSH Context Console
 
+[![npm](https://img.shields.io/npm/v/dsh-context-console)](https://www.npmjs.com/package/dsh-context-console)
+[![CI](https://github.com/anweat/dsh-context-console/actions/workflows/ci.yml/badge.svg)](https://github.com/anweat/dsh-context-console/actions/workflows/ci.yml)
+[![license](https://img.shields.io/npm/l/dsh-context-console)](./LICENSE)
+
 面向 DeepSeek Harness 的完整上下文工作台：把会话轨迹、Prompt / Skill /
 MCP / Tools 管理、缓存观察、消息锻造和 sessionlog 修复放进同一个插件。
 
@@ -50,6 +54,12 @@ corepack pnpm dsh plugin --profile web add dsh-context-console
 ```
 
 随后重启 DSH。原有 `$DSH_HOME/assistant-message-forge/` 数据会直接复用，无需转换。
+
+发布包的 `repository` 元数据指向本仓库；可通过 npm registry 核对版本与完整性：
+
+```powershell
+npm view dsh-context-console version dist.integrity repository
+```
 
 ## 本地开发
 
