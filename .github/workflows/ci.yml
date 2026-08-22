@@ -18,10 +18,12 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.7.0
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}
           cache: pnpm
-      - run: corepack enable
-      - run: corepack pnpm install --frozen-lockfile
-      - run: corepack pnpm run verify
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run verify
