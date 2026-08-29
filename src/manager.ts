@@ -2,7 +2,7 @@
  * Inventory manager: reads live registries, applies dynamic add/remove,
  * persists the manifest, and restores managed items on plugin activation.
  */
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import type { Storage, ManagedPrompt, ManagedSkill, ManagedMcp, InsertionMode } from './storage.ts'
 import { readPromptEntries, readSkillEntries, readMcpEntries, readToolEntries, readSessionlogToolEntries } from './registry.ts'
 import type { Category, InventoryItem, InventorySnapshot } from './shared-types.ts'
@@ -11,6 +11,7 @@ interface ManagerCtx {
   systemPrompt?: {
     section(input: { name: string; order: number; text: string; complete?: boolean }): () => void
     context(input: { name: string; order: number; text: string }): () => void
+    variable(name: string, provider: () => string | undefined): () => void
     assemble(context?: any): Promise<{
       sections: Array<{ name: string; text: string }>
       contexts: Array<{ name: string; text: string }>
@@ -108,10 +109,24 @@ export class Manager {
   private registerPrompt(ctx: ManagerCtx, prompt: ManagedPrompt): () => void {
     if (ctx.systemPrompt === undefined) throw new Error('systemPrompt service is not mounted')
     const name = `context-console:${prompt.name}`
-    if (prompt.insertion === 'system-prefix' || prompt.kind === 'section') {
-      return ctx.systemPrompt.section({ name, order: prompt.order, text: prompt.text })
+    if (typeof ctx.systemPrompt.variable !== 'function') {
+      throw new Error('systemPrompt variable service is required for opaque managed prompts')
     }
-    return ctx.systemPrompt.context({ name, order: prompt.order, text: prompt.text })
+    const variableName = `context_console_prompt_${createHash('sha256').update(prompt.id).digest('hex').slice(0, 24)}`
+    const disposeVariable = ctx.systemPrompt.variable(variableName, () => prompt.text)
+    let disposePrompt: (() => void) | undefined
+    try {
+      const text = `{{${variableName}}}`
+      disposePrompt = prompt.insertion === 'system-prefix' || prompt.kind === 'section'
+        ? ctx.systemPrompt.section({ name, order: prompt.order, text })
+        : ctx.systemPrompt.context({ name, order: prompt.order, text })
+    } catch (error) {
+      disposeVariable()
+      throw error
+    }
+    return () => {
+      try { disposePrompt?.() } finally { disposeVariable() }
+    }
   }
 
   private registerSkill(ctx: ManagerCtx, skill: ManagedSkill): () => void {

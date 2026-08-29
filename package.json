@@ -38,7 +38,8 @@
   "scripts": {
     "build": "node scripts/clean-lib.mjs && tsc -p tsconfig.json && tsdown",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "npm run test:client-bundle && npm run test:session-repair",
+    "test": "npm run test:manager && npm run test:client-bundle && npm run test:session-repair",
+    "test:manager": "node --test --experimental-transform-types test/*.test.ts",
     "test:client-bundle": "node scripts/check-client-bundle.mjs",
     "test:session-repair": "node scripts/test-session-repair.mjs",
     "test:package": "publint",
