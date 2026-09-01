@@ -33,12 +33,21 @@ MCP / Tools 管理、缓存观察、消息锻造和 sessionlog 修复放进同�
 
 ## 兼容版本
 
-- DeepSeek Harness：`0.1.1-rc.2`
+| 插件发布通道 | DSH 基线 | 兼容承诺 |
+|---|---|---|
+| npm `latest`（当前正式发布插件） | `dsh-v0.1.1-rc.2` | 已验证维护基线 |
+| npm `next` 候选（`0.1.1-alpha.3`） | `dsh-v0.1.2-alpha.3` | 已通过隔离真实 profile 门禁，仅用于开发预览 |
+| 后续 DSH 正式版 `0.1.2` | 尚未发布 | 发布并完成真实 profile 门禁后再声明兼容 |
+
+开发版不会覆盖 npm `latest`。alpha.3 依赖按精确版本锁定；该版本已移除
+`@deepseek-ai/dsh-client-runtime`，客户端上下文改用 Cordis、会话 ID 改用
+`dsh-session`，不会混装 rc.2 运行时。
+
 - Node.js：`^22.19.0 || >=24.0.0`
 - pnpm：`11.7.0`（建议始终通过 Corepack 调用）
 
-DSH 当前仍处于快速、破坏性演进阶段。本插件以当前版本为准，不承诺兼容旧的
-release candidate。
+DSH 当前仍处于快速、破坏性演进阶段。本插件按上述发布通道声明兼容，不把开发版
+验证结果提前扩展到尚未发布的正式版。
 
 ## 安装
 

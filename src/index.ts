@@ -140,7 +140,7 @@ export function apply(ctx: AppContext): void {
     }
   }
 
-  const disposeRpc = ctx.connection.rpc.handle(CONTEXT_CONSOLE_RPC_CHANNEL, handler, { authority: 'loopback' })
+  const disposeRpc = ctx.connection.rpc.handle(CONTEXT_CONSOLE_RPC_CHANNEL, handler)
   ctx.effect(() => () => { void disposeRpc() }, 'dsh-context-console: rpc channel')
 
   ctx.logger?.info?.('[dsh-context-console] loaded')

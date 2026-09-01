@@ -9,7 +9,6 @@ const allowed = new Set([
   'react-dom',
   'react-dom/client',
   '@deepseek-ai/cordis',
-  '@deepseek-ai/dsh-client-runtime/client',
   '@deepseek-ai/dsh-client-ui-slots',
 ])
 const forbidden = [...new Set(imports.filter(id => !allowed.has(id)))].sort()

@@ -353,7 +353,7 @@ export function apply(ctx: Context): void {
     }
   }
 
-  const dispose = ctx.connection.rpc.handle(AMF_RPC_CHANNEL, handler, { authority: 'loopback' })
+  const dispose = ctx.connection.rpc.handle(AMF_RPC_CHANNEL, handler)
   ctx.effect(() => () => { void dispose() }, 'dsh-assistant-message-forge: rpc channel')
 
   try {
