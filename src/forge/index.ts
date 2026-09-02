@@ -24,7 +24,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import type { ConnectionRpcHandler } from '@deepseek-ai/dsh-client-connection'
 import { createAssistantMessage } from '@deepseek-ai/dsh-llm'
 import type { ContentBlock, TokenUsage } from '@deepseek-ai/dsh-llm'
-import { SessionId } from '@deepseek-ai/dsh-session'
+import { SessionId, SessionLogOffset } from '@deepseek-ai/dsh-session'
 import type { Session } from '@deepseek-ai/dsh-session'
 import { ContextRecordStore } from './context.ts'
 import { DraftStore } from './store.ts'
@@ -87,7 +87,7 @@ function executionState(session: Session): { open: boolean; nextTurn: number } {
   let openTurn: number | null = null
   let openStep: number | null = null
   let maxTurn = 0
-  for (const event of session.events) {
+  for (const event of session.snapshotEvents()) {
     switch (event.type) {
       case 'turn/start':
         openTurn = event.data.turn
@@ -264,10 +264,11 @@ async function createRepairedSession(ctx: Context, payload: unknown): Promise<Se
   const sessionId = SessionId(`session-repaired-${randomUUID()}`)
   const session = ctx.sessions.create(sessionId, {
     seed: repaired.events,
+    inheritedEventCount: SessionLogOffset(repaired.events.length),
     meta: {
       ...(typeof header.cwd === 'string' ? { cwd: header.cwd } : {}),
       ...(sourceId === undefined ? {} : { parentSession: sourceId }),
-      seedLength: repaired.events.length,
+      isSeeded: true,
       ...(typeof header.agentPreset === 'string' ? { agentPreset: header.agentPreset } : {}),
     },
   })

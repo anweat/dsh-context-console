@@ -21,7 +21,7 @@ import {
   createAssistantMessage, createUserMessage, freezeMessage,
 } from '@deepseek-ai/dsh-llm'
 import type { ContentBlock, MessageSource, TokenUsage, ToolResultMessage } from '@deepseek-ai/dsh-llm'
-import { isAppendSurfaceEvent } from '@deepseek-ai/dsh-session'
+import { isAppendSurfaceEvent, SessionSeq } from '@deepseek-ai/dsh-session'
 import type { Session, SessionEvent, SessionId } from '@deepseek-ai/dsh-session'
 import {
   type ContextApplyResponse, type ContextCard, type ContextCardPatch,
@@ -333,6 +333,7 @@ function cardFor(event: SessionEvent): ContextCard | undefined {
 
 /** Parse one live session into the card-ified context snapshot. */
 export function parseContext(session: Session): ContextSnapshot {
+  const events = session.snapshotEvents()
   const cards: ContextCard[] = []
   const counts: Record<string, number> = {}
   const turns: ContextTurnSummary[] = []
@@ -340,7 +341,7 @@ export function parseContext(session: Session): ContextSnapshot {
   const replacedBy = new Map<number, number[]>()
   const replacementOf = new Map<number, number[]>()
 
-  for (const event of session.events) {
+  for (const event of events) {
     counts[event.type] = (counts[event.type] ?? 0) + 1
     const surfaceFacts = event as SessionEvent & {
       surfaceOp?: 'append' | { op: 'replace'; start: number; end: number }
@@ -394,7 +395,7 @@ export function parseContext(session: Session): ContextSnapshot {
 
   // Replacement arrows can point both directions, so fill them after the
   // complete log pass (an earlier original may be shadowed by a later event).
-  const surface = new Set(session.surface.nodes)
+  const surface = new Set<number>(session.surface.nodes)
   for (const card of cards) {
     card.replacedBy = replacedBy.get(card.seq) ?? []
     card.shadowed = card.replacedBy.length > 0
@@ -406,7 +407,7 @@ export function parseContext(session: Session): ContextSnapshot {
     sessionId: session.id,
     recordedAt: Date.now(),
     lastSeq: session.seq - 1,
-    eventCount: session.events.length,
+    eventCount: events.length,
     surfaceNodes: session.surface.nodes,
     counts,
     turns,
@@ -562,14 +563,16 @@ export class ContextRecordStore {
     const session = ctx.sessions.get(sessionId as SessionId)
     if (session === undefined) throw new Error(`session "${sessionId}" is not live in this process`)
 
+    const events = session.snapshotEvents()
     let open = false
-    for (const event of session.events) {
+    for (const event of events) {
       if (event.type === 'turn/start') open = true
       else if (event.type === 'turn/end') open = false
     }
     if (open) throw new Error('session has an open turn; wait until the current turn ends before applying an edit')
 
-    const original = session.events[card.seq]
+    const sourceSeq = SessionSeq(card.seq)
+    const original = session.eventAt(sourceSeq)
     if (original === undefined || original.type !== card.type || !isAppendSurfaceEvent(original)) {
       throw new Error(`session event #${card.seq} is not an append-origin ${card.type}`)
     }
@@ -597,8 +600,8 @@ export class ContextRecordStore {
           message,
           ...(card.usage === undefined || card.usage === null ? {} : { usage: card.usage as TokenUsage }),
         }, {
-          surfaceOp: { op: 'replace', start: card.seq, end: card.seq },
-          sourceEventSeqs: [card.seq],
+          surfaceOp: { op: 'replace', start: sourceSeq, end: sourceSeq },
+          sourceEventSeqs: [sourceSeq],
         })
         break
       }
@@ -615,8 +618,8 @@ export class ContextRecordStore {
           source: originalMessage.source,
         })
         event = session.append('user/message', message, {
-          surfaceOp: { op: 'replace', start: card.seq, end: card.seq },
-          sourceEventSeqs: [card.seq],
+          surfaceOp: { op: 'replace', start: sourceSeq, end: sourceSeq },
+          sourceEventSeqs: [sourceSeq],
         })
         break
       }
@@ -646,8 +649,8 @@ export class ContextRecordStore {
           message,
           ...(data.error === undefined ? {} : { error: data.error }),
         }, {
-          surfaceOp: { op: 'replace', start: card.seq, end: card.seq },
-          sourceEventSeqs: [card.seq],
+          surfaceOp: { op: 'replace', start: sourceSeq, end: sourceSeq },
+          sourceEventSeqs: [sourceSeq],
         })
         break
       }
