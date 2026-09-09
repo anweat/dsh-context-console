@@ -7,7 +7,7 @@ surface in addition to the Context Console features.
 ## Preserved compatibility
 
 - The Message Forge tab remains available.
-- The `/dsh-assistant-message-forge` RPC channel remains available.
+- The Message Forge endpoint set remains available under `/api/dsh-assistant-message-forge/*`.
 - Existing data under `$DSH_HOME/assistant-message-forge/` is reused in place,
   including drafts and recorded context snapshots.
 - Session-log recovery remains conservative and creates a repaired child

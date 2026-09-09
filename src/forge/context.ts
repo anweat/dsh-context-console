@@ -9,8 +9,8 @@
  *   - request/header, request/context               -> request cards (read-only)
  *   - every other log-only event                    -> generic raw-JSON cards
  *
- * `assistant/chunk` is the only folded event family: chunks are counted per
- * turn instead of becoming thousands of cards. Surface-fold facts
+ * V3 Assistant streams are counted per turn from their settlement event rather
+ * than becoming thousands of cards. Surface-fold facts
  * (`inSurface`, `shadowed`, `replacedBy`, `replacementOf`) are computed so an
  * applied edit is visible as "original shadowed, replacement active".
  */
@@ -27,6 +27,7 @@ import {
   type ContextApplyResponse, type ContextCard, type ContextCardPatch,
   type ContextSnapshot, type ContextTurnSummary, type ForgeUsage,
 } from './shared-types.ts'
+import { syntheticAssistantStream } from './stream.ts'
 
 const RECORD_PREFIX = 'context-'
 
@@ -309,9 +310,6 @@ function cardFor(event: SessionEvent): ContextCard | undefined {
         replacementOf: [],
       }
     }
-    case 'assistant/chunk':
-      // Folded into per-turn counts; chunk-level cards would drown the UI.
-      return undefined
     default:
       return {
         key: `${event.type}:${event.seq}`,
@@ -344,7 +342,7 @@ export function parseContext(session: Session): ContextSnapshot {
   for (const event of events) {
     counts[event.type] = (counts[event.type] ?? 0) + 1
     const surfaceFacts = event as SessionEvent & {
-      surfaceOp?: 'append' | { op: 'replace'; start: number; end: number }
+      surfaceOp?: 'append' | { op: 'replace'; startSeq: number; endSeq: number }
       sourceEventSeqs?: number[]
     }
     if (surfaceFacts.surfaceOp !== undefined && typeof surfaceFacts.surfaceOp === 'object' && surfaceFacts.surfaceOp.op === 'replace') {
@@ -379,10 +377,10 @@ export function parseContext(session: Session): ContextSnapshot {
     } else if (event.type === 'step/start') {
       const summary = turnByNumber.get(event.data.turn)
       if (summary !== undefined) summary.stepCount += 1
-    } else if (event.type === 'assistant/chunk') {
-      const data = event.data as { turn: number }
+    } else if (event.type === 'assistant/message' || event.type === 'assistant/attempt') {
+      const data = event.data as { turn: number; stream: readonly unknown[] }
       const summary = turnByNumber.get(data.turn)
-      if (summary !== undefined) summary.chunkCount += 1
+      if (summary !== undefined) summary.chunkCount += data.stream.length
     }
 
     const card = cardFor(event)
@@ -598,10 +596,10 @@ export class ContextRecordStore {
           turn: data.turn,
           step: data.step,
           message,
+          stream: syntheticAssistantStream(reasoning, text === '' ? '(empty visible content)' : text),
           ...(card.usage === undefined || card.usage === null ? {} : { usage: card.usage as TokenUsage }),
         }, {
-          surfaceOp: { op: 'replace', start: sourceSeq, end: sourceSeq },
-          sourceEventSeqs: [sourceSeq],
+          surfaceOp: { op: 'replace', startSeq: sourceSeq, endSeq: sourceSeq },
         })
         break
       }
@@ -618,7 +616,7 @@ export class ContextRecordStore {
           source: originalMessage.source,
         })
         event = session.append('user/message', message, {
-          surfaceOp: { op: 'replace', start: sourceSeq, end: sourceSeq },
+          surfaceOp: { op: 'replace', startSeq: sourceSeq, endSeq: sourceSeq },
           sourceEventSeqs: [sourceSeq],
         })
         break
@@ -649,7 +647,7 @@ export class ContextRecordStore {
           message,
           ...(data.error === undefined ? {} : { error: data.error }),
         }, {
-          surfaceOp: { op: 'replace', start: sourceSeq, end: sourceSeq },
+          surfaceOp: { op: 'replace', startSeq: sourceSeq, endSeq: sourceSeq },
           sourceEventSeqs: [sourceSeq],
         })
         break

@@ -1,7 +1,8 @@
 /** Wire types shared by the Host half and the Client half of dsh-assistant-message-forge. */
 
 /** Generic Connection RPC channel mounted by the Host half. */
-export const AMF_RPC_CHANNEL = '/dsh-assistant-message-forge'
+export const AMF_RPC_CHANNEL = '/api'
+export const AMF_RPC_PREFIX = 'dsh-assistant-message-forge'
 
 /** One persisted, editable assistant-message draft. */
 export interface AssistantDraft {
@@ -158,7 +159,7 @@ export interface ContextCard {
   shadowed: boolean
   replacedBy: number[]
   replacementOf: number[]
-  surfaceOp?: 'append' | { op: 'replace'; start: number; end: number }
+  surfaceOp?: 'append' | { op: 'replace'; startSeq: number; endSeq: number }
 }
 
 /** Per-turn rollup used by the client to render boundary headers. */

@@ -3,7 +3,7 @@ import { useState } from 'react'
 import type { ClientConnectionRpc } from '@deepseek-ai/dsh-client-connection/client'
 import type { ConvViewProps } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
-import { CONTEXT_CONSOLE_RPC_CHANNEL } from '../shared-types.ts'
+import { CONTEXT_CONSOLE_RPC_CHANNEL, CONTEXT_CONSOLE_RPC_PREFIX } from '../shared-types.ts'
 import { TrajectoryWall } from './TrajectoryWall.tsx'
 import { InventoryPage } from './InventoryPage.tsx'
 import { HistoryStream } from './HistoryStream.tsx'
@@ -17,7 +17,7 @@ export interface ConsoleViewInjected {
 type ConsoleViewProps = ConvViewProps & InjectFace<ConsoleViewInjected> & PropsLocale<'contextConsole'>
 
 export async function rpcCall<T>(rpc: ClientConnectionRpc, endpoint: string, payload: unknown): Promise<T> {
-  const result = await rpc.call(CONTEXT_CONSOLE_RPC_CHANNEL, endpoint, payload)
+  const result = await rpc.call(CONTEXT_CONSOLE_RPC_CHANNEL, `${CONTEXT_CONSOLE_RPC_PREFIX}/${endpoint}`, payload)
   if (!result.ok) throw new Error(result.error.message)
   return result.value as T
 }

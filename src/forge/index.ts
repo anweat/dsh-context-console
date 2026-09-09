@@ -3,8 +3,8 @@
  *
  * The Host owns the durable draft list, the recorded session-context snapshots,
  * and every session mutation:
- *   - `/dsh-assistant-message-forge` generic Connection RPC channel
- *     (loopback authority) with drafts.* / session.inject / sessionlog.parse /
+ *   - `/api/dsh-assistant-message-forge/*` exact authenticated routes with
+ *     drafts.* / session.inject / sessionlog.parse /
  *     context.* / records.* endpoints;
  *   - context/refresh parses the live session in detail and card-ifies every
  *     turn/step boundary, message, tool call/result, request header and
@@ -28,9 +28,11 @@ import { SessionId, SessionLogOffset } from '@deepseek-ai/dsh-session'
 import type { Session } from '@deepseek-ai/dsh-session'
 import { ContextRecordStore } from './context.ts'
 import { DraftStore } from './store.ts'
+import { syntheticAssistantStream } from './stream.ts'
 import { parseSessionLogBytes, repairSessionLogBytes } from './sessionlog.ts'
+import { registerRpcRoutes } from '../rpc-routes.ts'
 import {
-  AMF_RPC_CHANNEL,
+  AMF_RPC_PREFIX,
   type AssistantDraftInput, type ContextCardPatch, type ForgeUsage,
   type InjectMessageInput, type InjectResponse, type SessionLogRepairCreateResponse,
 } from './shared-types.ts'
@@ -216,6 +218,7 @@ async function injectMessage(ctx: Context, payload: unknown): Promise<InjectResp
     turn,
     step,
     message: assistantMessage,
+    stream: syntheticAssistantStream(reasoning, content === '' ? '(empty visible content)' : content),
     ...(message.usage === undefined || message.usage === null ? {} : { usage: message.usage }),
   }, { surfaceOp: 'append' })
   session.append('step/end', { turn, step })
@@ -354,14 +357,18 @@ export function apply(ctx: Context): void {
     }
   }
 
-  const dispose = ctx.connection.rpc.handle(AMF_RPC_CHANNEL, handler)
-  ctx.effect(() => () => { void dispose() }, 'dsh-assistant-message-forge: rpc channel')
+  registerRpcRoutes(ctx as Parameters<typeof registerRpcRoutes>[0], AMF_RPC_PREFIX, [
+    'drafts/list', 'drafts/save', 'drafts/delete', 'session/inject',
+    'sessionlog/parse', 'sessionlog/repair-preview', 'sessionlog/repair-create',
+    'context/load', 'context/refresh', 'records/update', 'records/reset',
+    'context/apply',
+  ], handler)
 
   try {
     const log = ctx.logger?.info?.bind(ctx.logger)
-    if (typeof log === 'function') log(`[dsh-assistant-message-forge] loaded (${AMF_RPC_CHANNEL})`)
-    else console.log(`[dsh-assistant-message-forge] loaded (${AMF_RPC_CHANNEL})`)
+    if (typeof log === 'function') log(`[dsh-assistant-message-forge] loaded (/api/${AMF_RPC_PREFIX})`)
+    else console.log(`[dsh-assistant-message-forge] loaded (/api/${AMF_RPC_PREFIX})`)
   } catch {
-    console.log(`[dsh-assistant-message-forge] loaded (${AMF_RPC_CHANNEL})`)
+    console.log(`[dsh-assistant-message-forge] loaded (/api/${AMF_RPC_PREFIX})`)
   }
 }

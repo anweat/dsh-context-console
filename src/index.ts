@@ -1,8 +1,8 @@
 /**
  * dsh-context-console — Host half.
  *
- * Owns the context-console RPC channel:
- *   /dsh-context-console
+ * Owns the context-console routes below the authenticated shared API:
+ *   /api/dsh-context-console/*
  *
  * Endpoints cover:
  *   - trajectory wall (live session event projection)
@@ -23,8 +23,9 @@ import { CacheMonitor } from './cache.ts'
 import { buildTrajectory } from './trajectory.ts'
 import { editMessage, injectSimulatedMessage } from './simulator.ts'
 import { apply as applyMessageForge } from './forge/index.ts'
+import { registerRpcRoutes } from './rpc-routes.ts'
 import {
-  CONTEXT_CONSOLE_RPC_CHANNEL,
+  CONTEXT_CONSOLE_RPC_PREFIX,
   type Category,
   type InsertionMode,
   type SimMessageInput,
@@ -35,8 +36,8 @@ export const inject = ['connection', 'sessions', 'systemPrompt', 'skills', 'tool
 
 type AppContext = Context & {
   connection: {
-    rpc: {
-      handle(channel: string, handler: ConnectionRpcHandler, options?: { authority?: string }): () => void
+    fetch: {
+      register(route: any): () => Promise<void>
     }
   }
   sessions: {
@@ -140,8 +141,12 @@ export function apply(ctx: AppContext): void {
     }
   }
 
-  const disposeRpc = ctx.connection.rpc.handle(CONTEXT_CONSOLE_RPC_CHANNEL, handler)
-  ctx.effect(() => () => { void disposeRpc() }, 'dsh-context-console: rpc channel')
+  registerRpcRoutes(ctx, CONTEXT_CONSOLE_RPC_PREFIX, [
+    'overview', 'trajectory/list', 'inventory/list', 'inventory/activate',
+    'inventory/deactivate', 'inventory/setInsertion', 'message/edit',
+    'sim/inject', 'cache/overview', 'history/list', 'history/clear',
+    'state/export', 'state/import',
+  ], handler)
 
   ctx.logger?.info?.('[dsh-context-console] loaded')
 

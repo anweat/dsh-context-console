@@ -18,7 +18,7 @@ import type { ClientConnectionRpc } from '@deepseek-ai/dsh-client-connection/cli
 import type { ConvViewProps } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import {
-  AMF_RPC_CHANNEL,
+  AMF_RPC_CHANNEL, AMF_RPC_PREFIX,
   type AssistantDraft, type ContextApplyResponse, type ContextCard,
   type ContextCardPatch, type ContextSnapshot, type RecognizedEntry,
   type SessionLogParseResponse, type SessionLogRepairCreateResponse,
@@ -58,7 +58,7 @@ const EMPTY_FORM: DraftForm = {
 }
 
 async function rpcCall<T>(rpc: ClientConnectionRpc, endpoint: string, payload: unknown): Promise<T> {
-  const result = await rpc.call(AMF_RPC_CHANNEL, endpoint, payload)
+  const result = await rpc.call(AMF_RPC_CHANNEL, `${AMF_RPC_PREFIX}/${endpoint}`, payload)
   if (!result.ok) throw new Error(result.error.message)
   return result.value as T
 }
