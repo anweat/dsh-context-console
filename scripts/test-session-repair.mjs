@@ -6,7 +6,7 @@ const header = {
   version: 0,
   id: 'session-corrupt-test',
   createdAt: 1,
-  cwd: 'D:/codeproject/dsh-plugin',
+  cwd: process.cwd(),
   delegationDepth: 0,
 }
 
