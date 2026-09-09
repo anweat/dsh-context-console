@@ -9,8 +9,8 @@
  *   - request/header, request/context               -> request cards (read-only)
  *   - every other log-only event                    -> generic raw-JSON cards
  *
- * `assistant/chunk` is the only folded event family: chunks are counted per
- * turn instead of becoming thousands of cards. Surface-fold facts
+ * V3 Assistant streams are counted per turn from their settlement event rather
+ * than becoming thousands of cards. Surface-fold facts
  * (`inSurface`, `shadowed`, `replacedBy`, `replacementOf`) are computed so an
  * applied edit is visible as "original shadowed, replacement active".
  */
@@ -21,12 +21,13 @@ import {
   createAssistantMessage, createUserMessage, freezeMessage,
 } from '@deepseek-ai/dsh-llm'
 import type { ContentBlock, MessageSource, TokenUsage, ToolResultMessage } from '@deepseek-ai/dsh-llm'
-import { isAppendSurfaceEvent } from '@deepseek-ai/dsh-session'
+import { isAppendSurfaceEvent, SessionSeq } from '@deepseek-ai/dsh-session'
 import type { Session, SessionEvent, SessionId } from '@deepseek-ai/dsh-session'
 import {
   type ContextApplyResponse, type ContextCard, type ContextCardPatch,
   type ContextSnapshot, type ContextTurnSummary, type ForgeUsage,
 } from './shared-types.ts'
+import { syntheticAssistantStream } from './stream.ts'
 
 const RECORD_PREFIX = 'context-'
 
@@ -309,9 +310,6 @@ function cardFor(event: SessionEvent): ContextCard | undefined {
         replacementOf: [],
       }
     }
-    case 'assistant/chunk':
-      // Folded into per-turn counts; chunk-level cards would drown the UI.
-      return undefined
     default:
       return {
         key: `${event.type}:${event.seq}`,
@@ -333,6 +331,7 @@ function cardFor(event: SessionEvent): ContextCard | undefined {
 
 /** Parse one live session into the card-ified context snapshot. */
 export function parseContext(session: Session): ContextSnapshot {
+  const events = session.snapshotEvents()
   const cards: ContextCard[] = []
   const counts: Record<string, number> = {}
   const turns: ContextTurnSummary[] = []
@@ -340,10 +339,10 @@ export function parseContext(session: Session): ContextSnapshot {
   const replacedBy = new Map<number, number[]>()
   const replacementOf = new Map<number, number[]>()
 
-  for (const event of session.events) {
+  for (const event of events) {
     counts[event.type] = (counts[event.type] ?? 0) + 1
     const surfaceFacts = event as SessionEvent & {
-      surfaceOp?: 'append' | { op: 'replace'; start: number; end: number }
+      surfaceOp?: 'append' | { op: 'replace'; startSeq: number; endSeq: number }
       sourceEventSeqs?: number[]
     }
     if (surfaceFacts.surfaceOp !== undefined && typeof surfaceFacts.surfaceOp === 'object' && surfaceFacts.surfaceOp.op === 'replace') {
@@ -378,10 +377,10 @@ export function parseContext(session: Session): ContextSnapshot {
     } else if (event.type === 'step/start') {
       const summary = turnByNumber.get(event.data.turn)
       if (summary !== undefined) summary.stepCount += 1
-    } else if (event.type === 'assistant/chunk') {
-      const data = event.data as { turn: number }
+    } else if (event.type === 'assistant/message' || event.type === 'assistant/attempt') {
+      const data = event.data as { turn: number; stream: readonly unknown[] }
       const summary = turnByNumber.get(data.turn)
-      if (summary !== undefined) summary.chunkCount += 1
+      if (summary !== undefined) summary.chunkCount += data.stream.length
     }
 
     const card = cardFor(event)
@@ -394,7 +393,7 @@ export function parseContext(session: Session): ContextSnapshot {
 
   // Replacement arrows can point both directions, so fill them after the
   // complete log pass (an earlier original may be shadowed by a later event).
-  const surface = new Set(session.surface.nodes)
+  const surface = new Set<number>(session.surface.nodes)
   for (const card of cards) {
     card.replacedBy = replacedBy.get(card.seq) ?? []
     card.shadowed = card.replacedBy.length > 0
@@ -406,7 +405,7 @@ export function parseContext(session: Session): ContextSnapshot {
     sessionId: session.id,
     recordedAt: Date.now(),
     lastSeq: session.seq - 1,
-    eventCount: session.events.length,
+    eventCount: events.length,
     surfaceNodes: session.surface.nodes,
     counts,
     turns,
@@ -562,14 +561,16 @@ export class ContextRecordStore {
     const session = ctx.sessions.get(sessionId as SessionId)
     if (session === undefined) throw new Error(`session "${sessionId}" is not live in this process`)
 
+    const events = session.snapshotEvents()
     let open = false
-    for (const event of session.events) {
+    for (const event of events) {
       if (event.type === 'turn/start') open = true
       else if (event.type === 'turn/end') open = false
     }
     if (open) throw new Error('session has an open turn; wait until the current turn ends before applying an edit')
 
-    const original = session.events[card.seq]
+    const sourceSeq = SessionSeq(card.seq)
+    const original = session.eventAt(sourceSeq)
     if (original === undefined || original.type !== card.type || !isAppendSurfaceEvent(original)) {
       throw new Error(`session event #${card.seq} is not an append-origin ${card.type}`)
     }
@@ -595,10 +596,10 @@ export class ContextRecordStore {
           turn: data.turn,
           step: data.step,
           message,
+          stream: syntheticAssistantStream(reasoning, text === '' ? '(empty visible content)' : text),
           ...(card.usage === undefined || card.usage === null ? {} : { usage: card.usage as TokenUsage }),
         }, {
-          surfaceOp: { op: 'replace', start: card.seq, end: card.seq },
-          sourceEventSeqs: [card.seq],
+          surfaceOp: { op: 'replace', startSeq: sourceSeq, endSeq: sourceSeq },
         })
         break
       }
@@ -615,8 +616,8 @@ export class ContextRecordStore {
           source: originalMessage.source,
         })
         event = session.append('user/message', message, {
-          surfaceOp: { op: 'replace', start: card.seq, end: card.seq },
-          sourceEventSeqs: [card.seq],
+          surfaceOp: { op: 'replace', startSeq: sourceSeq, endSeq: sourceSeq },
+          sourceEventSeqs: [sourceSeq],
         })
         break
       }
@@ -646,8 +647,8 @@ export class ContextRecordStore {
           message,
           ...(data.error === undefined ? {} : { error: data.error }),
         }, {
-          surfaceOp: { op: 'replace', start: card.seq, end: card.seq },
-          sourceEventSeqs: [card.seq],
+          surfaceOp: { op: 'replace', startSeq: sourceSeq, endSeq: sourceSeq },
+          sourceEventSeqs: [sourceSeq],
         })
         break
       }

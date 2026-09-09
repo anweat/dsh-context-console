@@ -6,7 +6,8 @@ const header = {
   version: 0,
   id: 'session-corrupt-test',
   createdAt: 1,
-  cwd: 'D:/codeproject/dsh-plugin',
+  cwd: process.cwd(),
+  delegationDepth: 0,
 }
 
 const event = (type, seq, data) => ({ type, seq, time: 1000 + seq, data })
@@ -38,7 +39,15 @@ assert.equal(repaired.report.repairedEventCount, 6)
 assert.deepEqual(repaired.report.branchRewinds, [{ fromSeq: 3, discardedEvents: 2 }])
 assert.deepEqual(repaired.report.closersAdded, ['step/end', 'turn/end'])
 assert.deepEqual(repaired.events.map(item => item.seq), [0, 1, 2, 3, 4, 5])
-assert.equal(repaired.events[3]?.type, 'assistant/chunk')
+assert.equal(repaired.events[2]?.type, 'system/message')
+assert.equal(repaired.events[3]?.type, 'assistant/attempt')
+assert.deepEqual(repaired.events[3]?.data.stream, [{
+  type: 'text-chunks',
+  time0: 1002,
+  index: 0,
+  dt: [1],
+  texts: ['before', 'after'],
+}])
 assert.equal(repaired.events[4]?.type, 'step/end')
 assert.equal(repaired.events[5]?.type, 'turn/end')
 

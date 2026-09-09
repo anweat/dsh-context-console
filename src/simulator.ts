@@ -12,6 +12,7 @@ import { randomUUID } from 'node:crypto'
 import { createAssistantMessage, createUserMessage, freezeMessage } from '@deepseek-ai/dsh-llm'
 import type { ContentBlock, TokenUsage } from '@deepseek-ai/dsh-llm'
 import type { MessageEditPatch, MessageEditResult, SimMessageInput, SimMessageResult, SimMessageType } from './shared-types.ts'
+import { syntheticAssistantStream } from './forge/stream.ts'
 
 interface CtxLike {
   sessions: {
@@ -95,6 +96,7 @@ export async function injectSimulatedMessage(
         turn,
         step,
         message: assistantMessage,
+        stream: syntheticAssistantStream(reasoning, content === '' ? '(empty visible content)' : content),
         ...(input.usage == null ? {} : { usage: input.usage as unknown as TokenUsage }),
       }, { surfaceOp: 'append' })
       session.append('step/end', { turn, step })
@@ -224,10 +226,10 @@ export async function editMessage(
       turn: Number(data.turn),
       step: Number(data.step),
       message,
+      stream: syntheticAssistantStream(reasoning, text === '' ? '(empty visible content)' : text),
       ...(patch.usage == null ? {} : { usage: patch.usage as unknown as TokenUsage }),
     }, {
-      surfaceOp: { op: 'replace', start: seq, end: seq },
-      sourceEventSeqs: [seq],
+      surfaceOp: { op: 'replace', startSeq: seq, endSeq: seq },
     })
   } else if (type === 'user/message') {
     const text = (patch.text ?? '').trim()
@@ -238,7 +240,7 @@ export async function editMessage(
       source: originalMessage.source ?? { kind: 'plugin', plugin: 'context-console' },
     })
     event = session.append('user/message', message, {
-      surfaceOp: { op: 'replace', start: seq, end: seq },
+      surfaceOp: { op: 'replace', startSeq: seq, endSeq: seq },
       sourceEventSeqs: [seq],
     })
   } else if (type === 'tool/result') {
@@ -258,7 +260,7 @@ export async function editMessage(
       message,
       ...(data.error === undefined ? {} : { error: data.error }),
     }, {
-      surfaceOp: { op: 'replace', start: seq, end: seq },
+      surfaceOp: { op: 'replace', startSeq: seq, endSeq: seq },
       sourceEventSeqs: [seq],
     })
   } else {

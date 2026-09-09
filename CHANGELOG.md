@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.1-alpha.5 - 2026-09-09
+
+- Target DeepSeek Harness `0.1.5-alpha.1` and Session Log V3.
+- Restore V0–V3 logs through the official session-format catalog, including
+  packed rows, branch rewinds, embedded assistant streams, and turn closers.
+- Move both Host RPC surfaces to exact routes on Connection's authenticated
+  shared `/api` transport.
+- Keep generated messages and simulator edits valid under the V3 assistant
+  stream contract.
+
 ## 0.1.0 - 2026-08-22
 
 - Publish Context Console as an independent DSH plugin.

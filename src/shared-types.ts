@@ -3,7 +3,8 @@
  * This module must stay browser-safe (no node imports).
  */
 
-export const CONTEXT_CONSOLE_RPC_CHANNEL = '/dsh-context-console'
+export const CONTEXT_CONSOLE_RPC_CHANNEL = '/api'
+export const CONTEXT_CONSOLE_RPC_PREFIX = 'dsh-context-console'
 
 export type Category = 'prompt' | 'skill' | 'mcp' | 'tools'
 export type InsertionMode = 'tail' | 'system-prefix'

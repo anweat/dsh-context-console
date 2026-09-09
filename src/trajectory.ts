@@ -3,8 +3,8 @@
  *
  * Converts a live session's append-only event log into small brick cells.
  * Each cell carries a type color/icon and a compact summary; the client can
- * expand a cell into a full row. `assistant/chunk` events are folded into a
- * per-turn count instead of creating thousands of bricks.
+ * expand a cell into a full row. V3 assistant streams stay nested in their
+ * settlement event instead of creating thousands of bricks.
  */
 import type { TrajectoryCell, TrajectoryCellDetail, TrajectorySnapshot } from './shared-types.ts'
 
@@ -16,7 +16,7 @@ interface SessionLike {
 }
 
 interface SurfaceFacts {
-  surfaceOp?: 'append' | { op: 'replace'; start: number; end: number } | undefined
+  surfaceOp?: 'append' | { op: 'replace'; startSeq: number; endSeq: number } | undefined
   sourceEventSeqs?: number[]
 }
 
@@ -154,10 +154,6 @@ function cellFor(event: Record<string, any>): TrajectoryCell | undefined {
           step: Number(data.step),
         },
       }
-    }
-    case 'assistant/chunk': {
-      // folded; not a brick
-      return undefined
     }
     case 'tool/call': {
       const name = String(data.name)

@@ -1,9 +1,10 @@
 /** Session-log (session.jsonl / session.jsonl.zstd) decoding and recognition. */
 import { zstdDecompressSync } from 'node:zlib'
 import {
-  decodeStorageRecord, interruptedTurnClosers, Session, SessionId,
+  interruptedTurnClosers, Session, SessionId,
 } from '@deepseek-ai/dsh-session'
 import type { SessionEvent } from '@deepseek-ai/dsh-session'
+import { sessionFormatCatalog } from '@deepseek-ai/dsh-session-format-catalog'
 import type {
   AssistantMessage, ContentBlock, TokenUsage, ToolResultMessage, UserMessage,
 } from '@deepseek-ai/dsh-llm'
@@ -102,6 +103,86 @@ function decodeLogBytes(buffer: Buffer): { compressed: boolean; text: string } {
   return { compressed: false, text: buffer.toString('utf8') }
 }
 
+interface RestoredRows {
+  events: SessionEvent[]
+  originalEventCount: number
+  branchRewinds: SessionLogRepairReport['branchRewinds']
+  stopped: SessionLogRepairReport['stopped']
+  validationError: string | null
+}
+
+/** Restore physical rows through the released V0→V3 catalog. */
+function restoreRows(lines: readonly string[], startIndex: number, header: SessionLogHeader | null): RestoredRows {
+  if (header === null) {
+    return { events: [], originalEventCount: 0, branchRewinds: [], stopped: null, validationError: 'session header is missing or invalid' }
+  }
+  const descriptor = sessionFormatCatalog.readHeader(header)
+  if (descriptor.status === 'malformed' || descriptor.status === 'unsupported') {
+    return { events: [], originalEventCount: 0, branchRewinds: [], stopped: null, validationError: descriptor.reason }
+  }
+  const restore = sessionFormatCatalog.createRestore(header, { recovery: 'recoverable', validation: 'transformed' })
+  const branchRewinds: SessionLogRepairReport['branchRewinds'] = []
+  let originalEventCount = 0
+  let logicalLength = 0
+  let stopped: SessionLogRepairReport['stopped'] = null
+  const physicalRows: { record: unknown; line: number; start?: number; span: number }[] = []
+  for (let index = startIndex; index < lines.length; index += 1) {
+    const line = lines[index]?.trim() ?? ''
+    if (line === '') continue
+    let record: unknown
+    try {
+      record = JSON.parse(line)
+      originalEventCount += 1
+      let start: number | undefined
+      let span = 1
+      if (typeof record === 'object' && record !== null && !Array.isArray(record)) {
+        const row = record as { type?: unknown; seq?: unknown; seq0?: unknown; data?: unknown }
+        const coordinate = row.seq ?? row.seq0
+        if (typeof coordinate === 'number' && Number.isSafeInteger(coordinate) && coordinate >= 0) start = coordinate
+        if (typeof row.type === 'string' && ['text-chunks', 'reasoning-chunks', 'tool-call-chunks'].includes(row.type)) {
+          const payload = typeof row.data === 'object' && row.data !== null ? row.data as Record<string, unknown> : row as Record<string, unknown>
+          const members = row.type === 'tool-call-chunks' ? payload.args : payload.texts
+          if (Array.isArray(members) && members.length > 0) span = members.length
+        }
+      }
+      if (start !== undefined && start > logicalLength) {
+        stopped = { line: index + 1, reason: `forward seq gap: expected ${logicalLength}, got ${start}` }
+        break
+      }
+      if (start !== undefined && start < logicalLength) {
+        const cut = physicalRows.findIndex(row => row.start !== undefined && row.start >= start!)
+        const split = physicalRows.find(row => row.start !== undefined && row.start < start! && row.start + row.span > start!)
+        if (cut < 0 || split !== undefined) {
+          stopped = { line: index + 1, reason: `branch rewind ${start} splits a packed physical row` }
+          break
+        }
+        branchRewinds.push({ fromSeq: start, discardedEvents: logicalLength - start })
+        physicalRows.splice(cut)
+        logicalLength = start
+      }
+      physicalRows.push({ record, line: index + 1, ...(start === undefined ? {} : { start }), span })
+      if (start !== undefined) logicalLength = start + span
+    } catch (error) {
+      stopped = { line: index + 1, reason: String(error) }
+      break
+    }
+  }
+  for (const row of physicalRows) {
+    try {
+      restore.decodeRow(row.record)
+    } catch (error) {
+      stopped = { line: row.line, reason: String(error) }
+      break
+    }
+  }
+  try {
+    const artifact = restore.finish()
+    return { events: artifact.events.map(event => event as unknown as SessionEvent), originalEventCount, branchRewinds, stopped, validationError: null }
+  } catch (error) {
+    return { events: [], originalEventCount, branchRewinds, stopped, validationError: String(error) }
+  }
+}
+
 /** Internal repair result; events are retained only on the trusted Host side. */
 export interface SessionLogRepairResult {
   report: SessionLogRepairReport
@@ -133,48 +214,13 @@ export function repairSessionLogBytes(name: string, bytes: Buffer): SessionLogRe
     }
   }
 
-  const candidate: SessionEvent[] = []
-  const branchRewinds: SessionLogRepairReport['branchRewinds'] = []
-  let originalEventCount = 0
-  let stopped: SessionLogRepairReport['stopped'] = null
-
-  outer: for (let index = startIndex; index < lines.length; index += 1) {
-    const line = lines[index]?.trim() ?? ''
-    if (line === '') continue
-    let events: SessionEvent[]
-    try {
-      events = decodeStorageRecord(JSON.parse(line))
-    } catch (error) {
-      stopped = { line: index + 1, reason: String(error) }
-      break
-    }
-    for (const event of events) {
-      originalEventCount += 1
-      if (!Number.isSafeInteger(event.seq) || event.seq < 0) {
-        stopped = { line: index + 1, reason: `event seq must be a non-negative safe integer, got ${String(event.seq)}` }
-        break outer
-      }
-      if (event.seq > candidate.length) {
-        stopped = { line: index + 1, reason: `forward seq gap: expected ${candidate.length}, got ${event.seq}` }
-        break outer
-      }
-      if (event.seq < candidate.length) {
-        const discardedEvents = candidate.length - event.seq
-        candidate.splice(event.seq)
-        branchRewinds.push({ fromSeq: event.seq, discardedEvents })
-      }
-      candidate.push(event)
-    }
-  }
-
-  const closers = interruptedTurnClosers(candidate)
-  const events = [...candidate, ...closers]
-  let validationError: string | null = null
-  if (header === null) {
-    validationError = 'session header is missing or invalid'
-  } else if (events.length === 0) {
+  const restored = restoreRows(lines, startIndex, header)
+  const closers = interruptedTurnClosers(restored.events)
+  const events = [...restored.events, ...closers]
+  let validationError: string | null = restored.validationError
+  if (validationError === null && events.length === 0) {
     validationError = 'session log has no recoverable events'
-  } else {
+  } else if (validationError === null) {
     try {
       Session.create(SessionId('session-repair-validation'), events)
     } catch (error) {
@@ -187,11 +233,11 @@ export function repairSessionLogBytes(name: string, bytes: Buffer): SessionLogRe
       name,
       compressed: decoded.compressed,
       header,
-      originalEventCount,
+      originalEventCount: restored.originalEventCount,
       repairedEventCount: events.length,
-      branchRewinds,
+      branchRewinds: restored.branchRewinds,
       closersAdded: closers.map(event => event.type),
-      stopped,
+      stopped: restored.stopped,
       repairable: validationError === null,
       validationError,
     },
@@ -328,33 +374,22 @@ export function parseSessionLogBytes(name: string, bytes: Buffer): SessionLogPar
     }
   }
 
-  for (let index = startIndex; index < lines.length; index += 1) {
-    const line = lines[index]?.trim() ?? ''
-    if (line === '') continue
-    let record: unknown
-    try {
-      record = JSON.parse(line)
-    } catch (error) {
-      parseIssues += 1
-      if (issueSamples.length < 3) issueSamples.push(`line ${index + 1}: ${String(error)}`)
-      continue
-    }
-    let events: SessionEvent[]
-    try {
-      events = decodeStorageRecord(record)
-    } catch (error) {
-      parseIssues += 1
-      if (issueSamples.length < 3) issueSamples.push(`line ${index + 1}: ${String(error)}`)
-      continue
-    }
-    for (const event of events) {
+  const restored = restoreRows(lines, startIndex, header)
+  if (restored.stopped !== null) {
+    parseIssues += 1
+    issueSamples.push(`line ${restored.stopped.line}: ${restored.stopped.reason}`)
+  }
+  if (restored.validationError !== null) {
+    parseIssues += 1
+    issueSamples.push(restored.validationError)
+  }
+  for (const event of restored.events) {
       totalEvents += 1
       counts[event.type] = (counts[event.type] ?? 0) + 1
       const entry = entryFor(event)
       if (entry === undefined) continue
       recognizedTotal += 1
       if (recognized.length < MAX_RECOGNIZED) recognized.push(entry)
-    }
   }
 
   return {
